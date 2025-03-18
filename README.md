@@ -49,5 +49,6 @@ g++ main.cpp -o NinjaBattle -lsfml-graphics -lsfml-window -lsfml-system
 🚀 Introduce new enemy types
 
 💡 Fork this project & start coding your own ninja adventure! 🥷🔥
+I will accept all the good updates
 
 
