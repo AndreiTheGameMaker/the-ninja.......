@@ -1,108 +1,97 @@
 #include <SFML/Graphics.hpp>
+#include <SFML/Window.hpp>
+#include <SFML/Network.hpp>
 #include <iostream>
-#include <vector>
-#include <cmath>
-#include <ctime>
+#include <fstream>
+#include <string>
 
-class Ninja {
+class Player {
 public:
-    int hp;
-    sf::RectangleShape healthBar;
-    sf::RectangleShape player;
-    bool hasSniper;
+    sf::RectangleShape shape;
+    float speed = 200.f;
+    int hp = 100;
+    int xp = 0;
+    std::string name;
 
-    Ninja() {
-        hp = 100;
-        hasSniper = false; // Default weapon: ninja stick
-
-        // Initialize player
-        player.setSize(sf::Vector2f(50, 50));
-        player.setFillColor(sf::Color::Blue);
-        player.setPosition(375, 275); // Start at the center
-
-        // Health bar
-        healthBar.setSize(sf::Vector2f(100, 10));
-        healthBar.setFillColor(sf::Color::Green);
-        healthBar.setPosition(10, 10);
+    Player(float x, float y, const std::string& playerName) {
+        shape.setSize(sf::Vector2f(50.f, 50.f));  // Mărimea personajului
+        shape.setFillColor(sf::Color::Blue);
+        position = sf::Vector2f(x, y);
+        shape.setPosition(position);
+        name = playerName;
     }
 
-    void move(float dx, float dy) {
-        player.move(dx, dy);
+    sf::Vector2f position;
+
+    void move(const sf::Time& deltaTime) {
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::A)) position.x -= speed * deltaTime.asSeconds();
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::D)) position.x += speed * deltaTime.asSeconds();
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::W)) position.y -= speed * deltaTime.asSeconds();
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::S)) position.y += speed * deltaTime.asSeconds();
+        shape.setPosition(position);
     }
 
-    void takeDamage(int damage) {
-        hp -= damage;
+    void takeDamage(int amount) {
+        hp -= amount;
         if (hp < 0) hp = 0;
-
-        // Update health bar
-        healthBar.setSize(sf::Vector2f(hp, 10));
-        if (hp < 50) healthBar.setFillColor(sf::Color::Yellow);
-        if (hp < 20) healthBar.setFillColor(sf::Color::Red);
     }
 
-    void draw(sf::RenderWindow &window) {
-        window.draw(player);
-        window.draw(healthBar);
+    void gainXP(int amount) {
+        xp += amount;
+    }
+
+    bool isAlive() const {
+        return hp > 0;
     }
 };
 
-class Enemy {
-public:
-    sf::RectangleShape enemy;
-    int attackDamage;
-    int attackCooldown; // Time between attacks
-
-    Enemy(float x, float y) {
-        attackDamage = 5; // Damage per hit
-        attackCooldown = 0; // Start with no delay
-
-        enemy.setSize(sf::Vector2f(40, 40));
-        enemy.setFillColor(sf::Color::Red);
-        enemy.setPosition(x, y);
+// Funcție pentru a salva datele jucătorului (HP, XP, Nume)
+void savePlayerData(const Player& player) {
+    std::ofstream file("player_data.txt");
+    if (file.is_open()) {
+        file << player.name << std::endl;
+        file << player.hp << std::endl;
+        file << player.xp << std::endl;
+        file.close();
     }
+}
 
-    void moveTowards(Ninja &player) {
-        sf::Vector2f playerPos = player.player.getPosition();
-        sf::Vector2f enemyPos = enemy.getPosition();
-        sf::Vector2f direction = playerPos - enemyPos;
-
-        float length = std::sqrt(direction.x * direction.x + direction.y * direction.y);
-        if (length != 0) {
-            direction /= length;
-        }
-
-        enemy.move(direction * 0.5f);
+// Funcție pentru a încărca datele jucătorului (HP, XP, Nume)
+bool loadPlayerData(Player& player) {
+    std::ifstream file("player_data.txt");
+    if (file.is_open()) {
+        std::getline(file, player.name);
+        file >> player.hp;
+        file >> player.xp;
+        file.close();
+        return true;
     }
-
-    void attack(Ninja &player) {
-        if (enemy.getGlobalBounds().intersects(player.player.getGlobalBounds())) {
-            if (attackCooldown <= 0) {
-                player.takeDamage(attackDamage);
-                attackCooldown = 30; // Reset cooldown
-                std::cout << "Ninja took damage! HP: " << player.hp << std::endl;
-            }
-        }
-        if (attackCooldown > 0) {
-            attackCooldown--;
-        }
-    }
-
-    void draw(sf::RenderWindow &window) {
-        window.draw(enemy);
-    }
-};
+    return false;
+}
 
 int main() {
-    sf::RenderWindow window(sf::VideoMode(800, 600), "Ninja Battle");
-    Ninja player;
-    std::vector<Enemy> enemies;
+    sf::RenderWindow window(sf::VideoMode(800, 600), "Ninja Brawl Third-Person");
+    window.setFramerateLimit(60);
 
-    srand(static_cast<unsigned>(time(0)));
-    for (int i = 0; i < 3; i++) {
-        float x = rand() % 700 + 50;
-        float y = rand() % 500 + 50;
-        enemies.emplace_back(x, y);
+    std::string playerName;
+    std::cout << "Enter your player name: ";
+    std::cin >> playerName;
+
+    Player player(375.f, 275.f, playerName);
+
+    // Încărcarea datelor anterioare ale jucătorului
+    if (loadPlayerData(player)) {
+        std::cout << "Player loaded: " << player.name << std::endl;
+        std::cout << "HP: " << player.hp << ", XP: " << player.xp << std::endl;
+    } else {
+        std::cout << "No previous player data found." << std::endl;
     }
+
+    sf::View view = window.getDefaultView();
+    view.setSize(800.f, 600.f);
+    view.setCenter(player.shape.getPosition().x + 25.f, player.shape.getPosition().y + 25.f); 
+
+    sf::Clock clock;
 
     while (window.isOpen()) {
         sf::Event event;
@@ -111,37 +100,32 @@ int main() {
                 window.close();
         }
 
-        // Player Movement
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::W)) player.move(0, -2);
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::S)) player.move(0, 2);
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::A)) player.move(-2, 0);
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::D)) player.move(2, 0);
+        sf::Time deltaTime = clock.restart();
 
-        // Weapon Switching
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num1)) player.hasSniper = false;
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num2)) player.hasSniper = true;
+        // Mișcarea jucătorului
+        player.move(deltaTime);
 
-        // Enemy AI
-        for (auto &enemy : enemies) {
-            enemy.moveTowards(player);
-            enemy.attack(player);
+        // Camera urmează jucătorul
+        view.setCenter(player.shape.getPosition().x + 25.f, player.shape.getPosition().y + 25.f);
+        window.setView(view);
+
+        // Simularea unei interacțiuni cu alți inamici
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Space)) {
+            player.takeDamage(10);
+            player.gainXP(5);
         }
 
-        // Check if player is dead
-        if (player.hp <= 0) {
-            std::cout << "Game Over!" << std::endl;
-            window.close();
+        // Salvarea progresului periodic (pentru testare)
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::S)) {
+            savePlayerData(player);
+            std::cout << "Data saved!" << std::endl;
         }
 
+        // Curățarea ferestrei și desenarea obiectelor
         window.clear();
-        player.draw(window);
-        for (auto &enemy : enemies) {
-            enemy.draw(window);
-        }
+        window.draw(player.shape);
         window.display();
     }
 
     return 0;
 }
-
-
